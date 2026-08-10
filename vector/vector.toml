@@ -2,7 +2,7 @@ data_dir = "/var/lib/vector"
 
 
 ###############################################################################
-# Sorgente: log del router
+# Sorgente 1: file di log del router
 ###############################################################################
 
 [sources.router_logs]
@@ -15,16 +15,41 @@ strategy = "device_and_inode"
 
 
 ###############################################################################
-# Trasformazione
+# Sorgente 2: server Syslog TCP
 ###############################################################################
 
-[transforms.parse]
+[sources.syslog]
+type = "syslog"
+address = "0.0.0.0:5140"
+mode = "tcp"
+
+
+###############################################################################
+# Trasformazione dei log provenienti dal file
+###############################################################################
+
+[transforms.parse_router_logs]
 type = "remap"
 inputs = ["router_logs"]
 
 source = '''
 .message = string!(.message)
-.service_name = "router"
+.service_name = "router-file"
+.event_time = now()
+'''
+
+
+###############################################################################
+# Trasformazione dei messaggi Syslog
+###############################################################################
+
+[transforms.parse_syslog]
+type = "remap"
+inputs = ["syslog"]
+
+source = '''
+.message = string!(.message)
+.service_name = "router-syslog"
 .event_time = now()
 '''
 
@@ -35,7 +60,10 @@ source = '''
 
 [sinks.console]
 type = "console"
-inputs = ["parse"]
+inputs = [
+    "filter_snmp_warning",
+    "parse_syslog"
+]
 encoding.codec = "json"
 
 
@@ -45,10 +73,24 @@ encoding.codec = "json"
 
 [sinks.postgres]
 type = "postgres"
-inputs = ["parse"]
+inputs = [
+    "filter_snmp_warning",
+    "parse_syslog"
+]
 endpoint = "postgresql://admin:admin@postgres:5432/observability"
 table = "raw.log_events"
 
 [sinks.postgres.batch]
 max_events = 100
 timeout_secs = 1
+
+[transforms.filter_snmp_warning]
+type = "filter"
+inputs = ["parse_router_logs"]
+
+condition = '''
+!contains(
+  string!(.message),
+  "systemstats_linux: unexpected header length"
+)
+'''
