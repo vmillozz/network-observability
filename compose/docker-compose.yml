@@ -1,4 +1,3 @@
-
 services:
   postgres:
     image: postgres:16
@@ -38,27 +37,75 @@ services:
   netem-client:
     build:
       context: ../netem/client
+    image: local/netem-node:arm64
     container_name: netem-client
-    command: sleep infinity
+    command:
+      - sh
+      - -c
+      - |
+        ip route add 10.10.2.0/24 via 10.10.1.254
+        sleep infinity
     cap_add:
       - NET_ADMIN
       - NET_RAW
     networks:
-      - netem-lab
+      client-net:
+        ipv4_address: 10.10.1.10
+
+  netem-router:
+    build:
+      context: ../netem/client
+    image: local/netem-node:arm64
+    container_name: netem-router
+    command: sleep infinity
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    networks:
+      client-net:
+        ipv4_address: 10.10.1.254
+      server-net:
+        ipv4_address: 10.10.2.254
 
   netem-server:
-    image: python:3.13-alpine
+    build:
+      context: ../netem/client
+    image: local/netem-node:arm64
     container_name: netem-server
     command:
-      - python
-      - -m
-      - http.server
-      - "8080"
-    expose:
-      - "8080"
+      - sh
+      - -c
+      - |
+        ip route add 10.10.1.0/24 via 10.10.2.254
+        python3 -m http.server 8080
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     networks:
-      - netem-lab
+      server-net:
+        ipv4_address: 10.10.2.10
+
+  telegraf:
+    image: telegraf:latest
+    container_name: telegraf
+    volumes:
+      - ../telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    ports:
+      - "9273:9273"
+    depends_on:
+      - prometheus
 
 networks:
-  netem-lab:
-    name: netem-lab
+  client-net:
+    name: netem-client-net
+    ipam:
+      config:
+        - subnet: 10.10.1.0/24
+
+  server-net:
+    name: netem-server-net
+    ipam:
+      config:
+        - subnet: 10.10.2.0/24

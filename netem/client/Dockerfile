@@ -1,10 +1,14 @@
-FROM alpine:3
+FROM alpine:3.20
 
 RUN apk add --no-cache \
-    curl \
+    bash \
     iproute2 \
     iputils \
-    bind-tools \
-    tcpdump
+    tcpdump \
+    curl \
+    python3 \
+    busybox-extras \
+    net-snmp \
+    net-snmp-tools
 
-CMD ["sleep", "infinity"]
+CMD ["sh"]
