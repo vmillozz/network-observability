@@ -1,0 +1,53 @@
+data_dir = "/var/lib/vector"
+
+
+###############################################################################
+# Sorgente: log del router
+###############################################################################
+
+[sources.router_logs]
+type = "file"
+include = ["/logs/router.log"]
+read_from = "beginning"
+
+[sources.router_logs.fingerprint]
+strategy = "device_and_inode"
+
+
+###############################################################################
+# Trasformazione
+###############################################################################
+
+[transforms.parse]
+type = "remap"
+inputs = ["router_logs"]
+
+source = '''
+.message = string!(.message)
+.service_name = "router"
+'''
+
+
+###############################################################################
+# Output console
+###############################################################################
+
+[sinks.console]
+type = "console"
+inputs = ["parse"]
+encoding.codec = "json"
+
+
+###############################################################################
+# Output PostgreSQL
+###############################################################################
+
+[sinks.postgres]
+type = "postgres"
+inputs = ["parse"]
+endpoint = "postgresql://admin:admin@postgres:5432/observability"
+table = "raw.log_events"
+
+[sinks.postgres.batch]
+max_events = 100
+timeout_secs = 1
