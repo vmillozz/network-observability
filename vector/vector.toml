@@ -25,6 +25,7 @@ inputs = ["router_logs"]
 source = '''
 .message = string!(.message)
 .service_name = "router"
+.event_time = now()
 '''
 
 
